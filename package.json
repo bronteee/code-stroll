@@ -15,5 +15,10 @@
   },
   "peerDependencies": {
     "opencode": ">=0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "opencode": {
+      "optional": true
+    }
   }
 }
