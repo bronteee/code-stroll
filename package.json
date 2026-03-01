@@ -1,0 +1,19 @@
+{
+  "name": "opencode-learn-review",
+  "version": "0.1.0",
+  "description": "Interactive code review learning mode for opencode",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist",
+    "dev": "bun --watch src/index.ts",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "opencode": ">=0.1.0"
+  }
+}
