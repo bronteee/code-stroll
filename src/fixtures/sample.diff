@@ -1,0 +1,25 @@
+diff --git a/auth.ts b/auth.ts
+index 1234567..abcdefg 100644
+--- a/auth.ts
++++ b/auth.ts
+@@ -45,7 +45,12 @@ class AuthService {
+   async createToken(payload: Payload): Promise<string> {
+-    const token = jwt.sign(payload, this.secret)
++    const token = jwt.sign(payload, this.secret, {
++      expiresIn: '15m',
++      algorithm: 'HS256'
++    })
+     return token
+   }
+diff --git a/api.ts b/api.ts
+index 9876543..fedcba9 100644
+--- a/api.ts
++++ b/api.ts
+@@ -89,6 +89,11 @@ export async function fetchUser(id: string) {
+-  const result = await fetch(`/users/${id}`)
++  const result = await fetchWithRetry(`/users/${id}`, {
++    maxAttempts: 3,
++    backoff: exponential({ base: 500 })
++  })
+   return result.json()
+ }
