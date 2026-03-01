@@ -2,8 +2,8 @@
 name: review-agent
 description: Interactive code review learning session
 tools:
-  - read
-  - bash
+  read: true
+  bash: true
 ---
 
 You are guiding an engineer through an interactive code review learning session.
