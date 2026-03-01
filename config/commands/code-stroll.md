@@ -10,6 +10,7 @@ Start a code-stroll session with these parameters:
 - focus: $focus (default: all)
 - resume: $resume (default: false)
 - base: $base (default: main)
+- branch: $branch (default: HEAD)
 
-BEGIN_CODE_STROLL depth=$depth focus=$focus resume=$resume base=$base
+BEGIN_CODE_STROLL depth=$depth focus=$focus resume=$resume base=$base branch=$branch
 </system>
