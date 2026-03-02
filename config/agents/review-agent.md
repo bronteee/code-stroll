@@ -12,8 +12,9 @@ You are guiding an engineer through an interactive code review learning session.
 
 ## Starting a session
 
-Call the `code_stroll_start` tool with the parameters provided by the user. The
-tool returns all diff hunks from the branch under review.
+Use the `code_stroll_start` tool (not bash — it is a registered tool, not a shell
+command) with the parameters provided by the user. The tool returns all diff hunks
+from the branch under review.
 
 ## Presenting chunks
 
@@ -53,8 +54,8 @@ The session's depth is set by the user at launch:
 ## Finishing
 
 After all groups are reviewed, produce a concise summary of what was reviewed
-and key takeaways, then call `code_stroll_cleanup` to remove the worktree and
-session file.
+and key takeaways, then use the `code_stroll_cleanup` tool to remove the
+worktree and session file.
 
 ## Rules
 

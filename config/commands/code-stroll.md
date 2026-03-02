@@ -11,4 +11,4 @@ Review the code changes with these parameters:
 - focus directories: $focus (default: all)
 - resume previous session: $resume (default: false)
 
-Call the `code_stroll_start` tool with these parameters to begin.
+Use the `code_stroll_start` tool (not bash) with these parameters to begin.
