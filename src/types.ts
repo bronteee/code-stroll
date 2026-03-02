@@ -37,22 +37,3 @@ export interface ReviewParams {
   base: string
   branch: string
 }
-
-export interface SessionMessageEvent {
-  content: string
-  sessionId: string
-}
-
-export interface OpenCodeClient {
-  post(path: string, body: { role: string; content: string }): Promise<void>
-}
-
-export interface OpenCodeLLM {
-  complete(prompt: string): Promise<string>
-}
-
-export interface OpenCodePlugin {
-  on(event: "session.message", handler: (event: SessionMessageEvent) => Promise<void>): void
-  client: OpenCodeClient
-  llm: OpenCodeLLM
-}

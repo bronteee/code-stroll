@@ -63,16 +63,19 @@ export function parseHunks(rawDiff: string): Hunk[] {
   return hunks
 }
 
-export async function createReviewWorktree(branch: string): Promise<string> {
+export async function createReviewWorktree(branch: string, baseDir?: string): Promise<string> {
   const safeBranch = branch.replace(/\//g, "-")
-  const path = `.opencode/worktrees/review-${safeBranch}`
-  const proc = Bun.spawn(["git", "worktree", "add", path, branch], { stderr: "pipe" })
+  const worktreeDir = `${baseDir ?? "."}/.opencode/worktrees/review-${safeBranch}`
+  const args = baseDir
+    ? ["git", "-C", baseDir, "worktree", "add", worktreeDir, branch]
+    : ["git", "worktree", "add", worktreeDir, branch]
+  const proc = Bun.spawn(args, { stderr: "pipe" })
   const exitCode = await proc.exited
   if (exitCode !== 0) {
     const stderr = await new Response(proc.stderr).text()
     throw new Error(`Failed to create worktree for branch '${branch}': ${stderr.trim()}`)
   }
-  return path
+  return worktreeDir
 }
 
 export async function getDiff(

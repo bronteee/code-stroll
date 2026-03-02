@@ -1,148 +1,124 @@
+import { tool } from "@opencode-ai/plugin/tool"
+import type { Plugin } from "@opencode-ai/plugin"
 import { parseHunks, createReviewWorktree, getDiff, removeWorktree } from "./git"
-import { groupHunks } from "./grouper"
-import { loadSession, writeSession, sessionExists, SESSION_PATH } from "./session"
-import type { Group, ReviewParams, SessionState, OpenCodePlugin } from "./types"
+import { loadSession, writeSession, sessionExists } from "./session"
+import type { Hunk, SessionState } from "./types"
 
-// ── Exported helpers (also used in tests) ────────────────────────────────────
-
-export function parseReviewCommand(token: string): ReviewParams {
-  const get = (key: string) => {
-    const match = token.match(new RegExp(`${key}=([^\\s]+)`))
-    return match ? match[1] : undefined
-  }
-
-  const focusRaw = get("focus")
-  return {
-    depth: (get("depth") as ReviewParams["depth"]) ?? "deep",
-    focus: focusRaw && focusRaw !== "all" ? focusRaw.split(",") : [],
-    resume: get("resume") === "true",
-    base: get("base") ?? "main",
-    branch: get("branch") ?? "HEAD",
-  }
-}
-
-export function buildChunkMessage(group: Group, total: number): string {
-  const concernsSection =
-    group.concerns.length > 0
-      ? `\n**Concerns:** ${group.concerns.join("; ")}`
-      : ""
-
-  return `[Review Plugin] Group ${group.id + 1}/${total}: **${group.label}**
-Files: ${group.files.join(", ")}
-
-\`\`\`diff
-${group.rawDiff}
-\`\`\`${concernsSection}`
-}
-
-// ── Plugin ────────────────────────────────────────────────────────────────────
-
-export default function codeStrollPlugin(opencode: OpenCodePlugin) {
-  opencode.on("session.message", async (event) => {
-    const { content, sessionId } = event
-
-    const beginLine = content.split("\n").find((l: string) => l.trimStart().startsWith("BEGIN_CODE_STROLL"))
-    if (beginLine) {
-      await startSession(parseReviewCommand(beginLine.trim()), sessionId, opencode)
-      return
-    }
-
-    if (content.trim() === "ADVANCE_CHUNK") {
-      await advanceChunk(sessionId, opencode)
-      return
-    }
-  })
-}
-
-async function startSession(params: ReviewParams, sessionId: string, opencode: OpenCodePlugin) {
-  if (params.resume && sessionExists()) {
-    const session = loadSession()
-    if (session.branch === params.branch) {
-      const next = session.groups.find((g) => g.status !== "completed")
-      if (next) {
-        next.status = "in_progress"
-        writeSession(session)
-        await injectChunk(next, session.groups.length, sessionId, opencode)
-        return
-      }
-    }
-  }
-
-  // Create isolated worktree for the branch under review
-  const worktreePath = await createReviewWorktree(params.branch)
-
-  // Get raw diff from worktree
-  const rawDiff = await getDiff(worktreePath, params.base, params.focus)
-
-  if (!rawDiff.trim()) {
-    await injectSystemMessage(
-      `No changes found between \`${params.branch}\` and \`${params.base}\`.`,
-      sessionId,
-      opencode
+function formatHunks(hunks: Hunk[]): string {
+  if (hunks.length === 0) return "No hunks found."
+  return hunks
+    .map(
+      (h, i) =>
+        `### Hunk ${i + 1}: ${h.file} (lines ${h.startLine}–${h.endLine})\n\`\`\`diff\n${h.content}\n\`\`\``
     )
-    await removeWorktree(worktreePath)
-    return
-  }
-
-  // LLM grouping — pass opencode's LLM client as the caller
-  const hunks = parseHunks(rawDiff)
-  const llmCaller = (prompt: string) => opencode.llm.complete(prompt)
-  const groups = await groupHunks(hunks, params.depth, llmCaller)
-
-  groups[0].status = "in_progress"
-
-  const session: SessionState = {
-    version: 1,
-    branch: params.branch,
-    base: params.base,
-    depth: params.depth,
-    focus: params.focus,
-    worktreePath,
-    createdAt: new Date().toISOString(),
-    groups,
-    summary: null,
-  }
-  writeSession(session)
-
-  await injectChunk(groups[0], groups.length, sessionId, opencode)
+    .join("\n\n")
 }
 
-async function advanceChunk(sessionId: string, opencode: OpenCodePlugin) {
-  if (!sessionExists()) return
+const plugin: Plugin = async (ctx) => ({
+  tool: {
+    code_stroll_start: tool({
+      description:
+        "Start or resume a code-stroll review session. Returns all diff hunks for the agent to semantically group and present.",
+      args: {
+        branch: tool.schema
+          .string()
+          .default("HEAD")
+          .describe("Branch to review"),
+        base: tool.schema
+          .string()
+          .default("main")
+          .describe("Base branch to diff against"),
+        focus: tool.schema
+          .string()
+          .default("")
+          .describe("Comma-separated directories to focus on, or empty for all"),
+        depth: tool.schema
+          .enum(["skim", "deep"])
+          .default("deep")
+          .describe("Review depth: skim (concerns only) or deep (full rationale)"),
+        resume: tool.schema
+          .string()
+          .default("false")
+          .describe("Set to 'true' to resume a previous session"),
+      },
+      async execute(args) {
+        const focusDirs =
+          args.focus && args.focus !== "all"
+            ? args.focus.split(",").map((s) => s.trim())
+            : []
 
-  const session = loadSession()
-  const current = session.groups.find((g) => g.status === "in_progress")
-  if (!current) return
+        // Resume existing session if requested
+        if (args.resume === "true" && sessionExists()) {
+          const session = loadSession()
+          if (session.branch === args.branch) {
+            return `Resumed session for branch \`${session.branch}\` (${session.groups.length} groups).\n\nDepth: ${session.depth}\n\n${formatHunks(
+              session.groups.flatMap((g) =>
+                g.hunks.map((ref) => {
+                  const [file, range] = ref.split(":")
+                  const [start, end] = range.split("-").map(Number)
+                  return { file, startLine: start, endLine: end, content: g.rawDiff }
+                })
+              )
+            )}`
+          }
+        }
 
-  current.status = "completed"
-  const next = session.groups.find((g) => g.status === "pending")
+        // Create worktree and get diff
+        const worktreePath = await createReviewWorktree(args.branch, ctx.directory)
+        const rawDiff = await getDiff(worktreePath, args.base, focusDirs.length > 0 ? focusDirs : undefined)
 
-  if (next) {
-    next.status = "in_progress"
-    writeSession(session)
-    await injectChunk(next, session.groups.length, sessionId, opencode)
-  } else {
-    writeSession(session)
-    await injectSummaryPrompt(session, sessionId, opencode)
-  }
-}
+        if (!rawDiff.trim()) {
+          await removeWorktree(worktreePath)
+          return `No changes found between \`${args.branch}\` and \`${args.base}\`.`
+        }
 
-async function injectChunk(group: Group, total: number, sessionId: string, opencode: OpenCodePlugin) {
-  await injectSystemMessage(buildChunkMessage(group, total), sessionId, opencode)
-}
+        const hunks = parseHunks(rawDiff)
 
-async function injectSummaryPrompt(session: SessionState, sessionId: string, opencode: OpenCodePlugin) {
-  const reviewed = session.groups.map((g) => `- ${g.label}`).join("\n")
-  await injectSystemMessage(
-    `[Review Plugin] All ${session.groups.length} groups reviewed.\n\nGroups covered:\n${reviewed}\n\nPlease provide a summary of what was reviewed and the key takeaways for the engineer.`,
-    sessionId,
-    opencode
-  )
-}
+        // Save session for potential resume
+        const { groupByFile } = await import("./grouper")
+        const groups = groupByFile(hunks)
+        const session: SessionState = {
+          version: 1,
+          branch: args.branch,
+          base: args.base,
+          depth: args.depth,
+          focus: focusDirs,
+          worktreePath,
+          createdAt: new Date().toISOString(),
+          groups,
+          summary: null,
+        }
+        writeSession(session)
 
-async function injectSystemMessage(content: string, sessionId: string, opencode: OpenCodePlugin) {
-  await opencode.client.post(`/session/${sessionId}/message`, {
-    role: "system",
-    content,
-  })
-}
+        return `Started code-stroll for \`${args.branch}\` vs \`${args.base}\`.\nDepth: **${args.depth}**\nHunks: **${hunks.length}**\nWorktree: \`${worktreePath}\`\n\n${formatHunks(hunks)}\n\nGroup these hunks semantically and present them one group at a time for review.`
+      },
+    }),
+
+    code_stroll_cleanup: tool({
+      description:
+        "Clean up the code-stroll session: remove the worktree and delete the session file.",
+      args: {},
+      async execute() {
+        if (!sessionExists()) {
+          return "No active session to clean up."
+        }
+        const session = loadSession()
+        try {
+          await removeWorktree(session.worktreePath)
+        } catch {
+          // Worktree may already be gone
+        }
+        const { rmSync } = await import("fs")
+        const { SESSION_PATH } = await import("./session")
+        try {
+          rmSync(SESSION_PATH)
+        } catch {
+          // Session file may already be gone
+        }
+        return `Cleaned up session for branch \`${session.branch}\`. Worktree removed.`
+      },
+    }),
+  },
+})
+
+export default plugin
