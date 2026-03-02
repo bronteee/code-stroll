@@ -9,16 +9,11 @@
     "dev": "bun --watch src/index.ts",
     "test": "bun test"
   },
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.2.15"
+  },
   "devDependencies": {
     "typescript": "^5.0.0",
     "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "opencode": ">=0.1.0"
-  },
-  "peerDependenciesMeta": {
-    "opencode": {
-      "optional": true
-    }
   }
 }

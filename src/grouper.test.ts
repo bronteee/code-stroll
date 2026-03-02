@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { groupHunks, groupByFile } from "./grouper"
+import { groupByFile } from "./grouper"
 import type { Hunk } from "./types"
 
 const hunks: Hunk[] = [
@@ -16,7 +16,7 @@ const hunksWithDuplicateFile: Hunk[] = [
 
 test("groupByFile aggregates multiple hunks in the same file", () => {
   const groups = groupByFile(hunksWithDuplicateFile)
-  expect(groups).toHaveLength(2)  // 2 files, not 3 hunks
+  expect(groups).toHaveLength(2)
   expect(groups[0].label).toBe("Changes in auth.ts")
   expect(groups[0].rawDiff).toContain("hunk1")
   expect(groups[0].rawDiff).toContain("hunk2")
@@ -40,47 +40,4 @@ test("groupByFile sets rawDiff from hunk content", () => {
 test("groupByFile sets empty concerns array", () => {
   const groups = groupByFile(hunks)
   expect(groups[0].concerns).toEqual([])
-})
-
-test("groupHunks falls back to groupByFile on LLM error", async () => {
-  const failingLLM = async (_prompt: string) => {
-    throw new Error("LLM timeout")
-  }
-  const groups = await groupHunks(hunks, "deep", failingLLM)
-  expect(groups).toHaveLength(3)
-  expect(groups[0].files).toEqual(["auth.ts"])
-})
-
-test("groupHunks uses LLM response when valid", async () => {
-  const llmResponse = JSON.stringify({
-    groups: [
-      {
-        label: "JWT config hardening",
-        hunkIndices: [0, 1],
-        concerns: ["no error handling on jwt.verify"],
-      },
-      {
-        label: "Retry logic",
-        hunkIndices: [2],
-        concerns: [],
-      },
-    ],
-  })
-  const mockLLM = async (_prompt: string) => llmResponse
-  const groups = await groupHunks(hunks, "deep", mockLLM)
-  expect(groups).toHaveLength(2)
-  expect(groups[0].label).toBe("JWT config hardening")
-  expect(groups[0].files).toEqual(["auth.ts", "config.ts"])
-  expect(groups[0].concerns).toEqual(["no error handling on jwt.verify"])
-  expect(groups[1].label).toBe("Retry logic")
-})
-
-test("groupHunks ignores out-of-bounds hunkIndices from LLM", async () => {
-  const llmResponse = JSON.stringify({
-    groups: [{ label: "Valid", hunkIndices: [0, 99], concerns: [] }],
-  })
-  const mockLLM = async (_prompt: string) => llmResponse
-  const groups = await groupHunks(hunks, "deep", mockLLM)
-  expect(groups).toHaveLength(1)
-  expect(groups[0].files).toEqual(["auth.ts"]) // only index 0 is valid
 })
