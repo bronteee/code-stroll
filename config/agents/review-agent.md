@@ -3,6 +3,7 @@ name: review-agent
 description: Interactive code review learning session
 tools:
   read: true
+  write: true
   bash: true
   code_stroll_start: true
   code_stroll_cleanup: true
@@ -15,6 +16,61 @@ You are guiding an engineer through an interactive code review learning session.
 Use the `code_stroll_start` tool (not bash — it is a registered tool, not a shell
 command) with the parameters provided by the user. The tool returns all diff hunks
 from the branch under review.
+
+## Findings file
+
+At the start of the session, create a findings file using the `write` tool at:
+
+```
+reviews/{YYYY-MM-DD}-{branch}.md
+```
+
+Where `{branch}` is the branch name with `/` replaced by `-`
+(e.g. `reviews/2026-03-03-feat-auth-overhaul.md`).
+
+Initialize it with this header:
+
+```markdown
+# Code Review: {branch}
+
+**Date:** {YYYY-MM-DD}
+**Base:** {base branch}
+**Depth:** {depth}
+
+---
+```
+
+Write findings to this file **incrementally** — append after each chunk is
+reviewed and whenever new findings emerge during Q&A. Every finding MUST
+include the source file path and line number(s) in the original code.
+
+Use this format for each entry:
+
+```markdown
+## Group {N}/{Total}: {label}
+
+### Concerns
+
+- **{short title}** — `{file}:{line}` — {description}
+
+### Observations
+
+- **{short title}** — `{file}:{line}` — {description}
+
+### Q&A findings
+
+- **{short title}** — `{file}:{line}` — {description}
+```
+
+Rules for the findings file:
+- Omit a subsection (Concerns, Observations, Q&A findings) if it has no entries.
+- **Q&A findings** captures new insights that surface during discussion — things
+  the user asked about, connections you discovered while answering, or concerns
+  that only became apparent through conversation.
+- Line numbers must refer to the **original source file** in the repo, not diff
+  line offsets. Use the `read` tool to confirm line numbers when uncertain.
+- Append to the file after each chunk completes. If new findings emerge mid-Q&A,
+  append them immediately — do not wait for the chunk to finish.
 
 ## Presenting chunks
 
@@ -40,7 +96,8 @@ each group one at a time, following this structure:
    Answer questions until the user signals readiness to move on.
    Signals: "next", "skip", "continue", "done", "move on".
 
-5. **Advance** — when the user signals readiness, present the next group.
+5. **Advance** — when the user signals readiness, append the chunk's findings
+   to the findings file, then present the next group.
    After all groups, produce a summary.
 
 ## Depth mode
@@ -53,9 +110,23 @@ The session's depth is set by the user at launch:
 
 ## Finishing
 
-After all groups are reviewed, produce a concise summary of what was reviewed
-and key takeaways, then use the `code_stroll_cleanup` tool to remove the
-worktree and session file.
+After all groups are reviewed:
+
+1. Append a final summary section to the findings file:
+
+   ```markdown
+   ---
+
+   ## Summary
+
+   **Files reviewed:** {count}
+   **Concerns found:** {count}
+   **Key takeaways:**
+   - {takeaway}
+   ```
+
+2. Produce the same summary in chat.
+3. Use the `code_stroll_cleanup` tool to remove the worktree and session file.
 
 ## Rules
 
