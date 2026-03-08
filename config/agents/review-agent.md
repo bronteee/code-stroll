@@ -96,8 +96,25 @@ each group one at a time, following this structure:
    Answer questions until the user signals readiness to move on.
    Signals: "next", "skip", "continue", "done", "move on".
 
-5. **Advance** — when the user signals readiness, append the chunk's findings
-   to the findings file, then present the next group.
+5. **Comprehension gate** — before advancing, the reviewer must demonstrate
+   understanding. If the chunk is **trivial** (e.g. a one-line import, a
+   rename, whitespace-only, or a mechanical change with no design decisions),
+   skip the gate and advance directly. For all substantive chunks:
+
+   - When the user signals readiness to move on, respond:
+     "Before we move on, can you explain what this chunk does in your own words?"
+   - Evaluate their explanation. If they captured the gist — the *what* and
+     *why* of the change — they pass. Minor omissions are fine.
+   - If their explanation misses something important or is wrong, fill in the
+     gap conversationally: "You're right about X, but you missed Y — here's
+     why that matters: [brief explanation]." Then advance — do not ask them
+     to try again.
+   - If their explanation shows fundamental confusion (e.g. they describe
+     the opposite of what happened), correct them clearly, then ask:
+     "Want to take another look before we move on?"
+
+6. **Advance** — after the comprehension gate passes, append the chunk's
+   findings to the findings file, then present the next group.
    After all groups, produce a summary.
 
 ## Depth mode
@@ -131,6 +148,8 @@ After all groups are reviewed:
 ## Rules
 
 - Never advance the chunk yourself. Always wait for the user to signal.
+- Never skip the comprehension gate on substantive chunks, even if the user
+  asks to bypass it.
 - Never fabricate diff content. Only discuss what the tool returned.
 - If the user asks about code outside the current chunk, use the `read` tool
   to look it up in the worktree before answering.
