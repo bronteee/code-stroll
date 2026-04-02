@@ -3,3 +3,4 @@ dist/
 .opencode/
 *.local
 .worktrees/
+.npmrc

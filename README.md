@@ -9,44 +9,26 @@ semantically, one chunk at a time, with Q&A and proactive explanations.
 
 ## Requirements
 
-- [Bun](https://bun.sh) v1.0+
 - [opencode](https://github.com/anthropics/opencode) installed in your project
 - Git
 
 ## Installation
 
-### Quick install
+1. Add the plugin to your project's `opencode.json`:
 
-Clone the repo and run the install script, passing your project directory:
-
-```bash
-git clone https://github.com/bronteee/code-stroll.git
-cd code-stroll
-./install.sh /path/to/your/project
+```json
+{
+  "plugin": ["code-stroll"]
+}
 ```
 
-This copies the command and agent files into your project's `.opencode/` directory and builds the plugin.
-
-### Manual install
-
-1. Copy the command file into your project:
+2. Install the slash command and review agent:
 
 ```bash
-cp config/commands/code-stroll.md /path/to/your/project/.opencode/commands/
+npx code-stroll init
 ```
 
-2. Copy the agent file:
-
-```bash
-cp config/agents/review-agent.md /path/to/your/project/.opencode/agents/
-```
-
-3. Build the plugin:
-
-```bash
-bun install
-bun run build
-```
+This copies the command and agent files into your project's `.opencode/` directory. The plugin itself is installed automatically by opencode at startup.
 
 ### Verify installation
 
@@ -54,6 +36,7 @@ After installing, check that the files are in place:
 
 ```
 your-project/
+  opencode.json                        ← plugin registered here
   .opencode/
     commands/
       code-stroll.md     ← slash command entry point
